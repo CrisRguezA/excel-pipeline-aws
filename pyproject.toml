@@ -1,0 +1,38 @@
+[project]
+name = "excel-pipeline-aws"
+version = "0.1.0"
+description = "Config-driven Excel processing pipeline"
+authors = [
+  { name = "Cristina" }
+]
+requires-python = ">=3.11"
+dependencies = [
+  "pandas",
+  "openpyxl",
+  "xlsxwriter",
+  "python-dotenv"
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest",
+  "ruff",
+  "mypy",
+  "bandit",
+  "pip-audit"
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.ruff]
+line-length = 88
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true

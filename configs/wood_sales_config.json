@@ -1,0 +1,35 @@
+{
+  "template_name": "wood_sales_standard",
+  "description": "Standard schema for wood product sales Excel files",
+  "version": "0.1.0",
+  "mvp_scope": "schema and column mapping only",
+
+  "column_order": [
+    "id_venta", "fecha_venta", "producto", "tipo_madera",
+    "certificacion", "cliente", "cantidad_m3", "precio_m3",
+    "importe", "estado", "comercial", "pais"
+  ],
+
+  "required_columns": [
+    "id_venta", "fecha_venta", "producto",
+    "cantidad_m3", "precio_m3", "importe", "estado"
+  ],
+
+  "mapping": {
+    "id_venta":      ["Venta ID", "ID_VENTA", "ID Venta", "Id venta"],
+    "fecha_venta":   ["fecha venta", "fecha_venta_alt", "Fecha_Venta",
+                      "fecha operación", "fecha", "fecha_venta",
+                      "FECHA_VENTA", "Fecha Venta"],
+    "producto":      ["Producto", "tipo_producto", "articulo", "producto"],
+    "tipo_madera":   ["TIPO_MADERA", "tipo_madera", "madera", "tipo madera"],
+    "certificacion": ["certif", "certificacion", "certificación"],
+    "cliente":       ["CLIENTE", "cliente", "Cliente", "cliente_2",
+                      "cliente_alt", "NOMBRE CLIENTE", "razon_social"],
+    "cantidad_m3":   ["Cantidad m3", "cantidad_m3", "m3", "volumen_m3"],
+    "precio_m3":     ["€/m3", "precio m3", "precio_m3", "Precio_m3"],
+    "importe":       ["importe", "importe_total", "total"],
+    "estado":        ["Estado", "estado", "situacion", "status"],
+    "comercial":     ["comercial", "responsable_comercial", "sales_rep", "vendedor"],
+    "pais":          ["country", "mercado", "pais", "País"]
+  }
+}

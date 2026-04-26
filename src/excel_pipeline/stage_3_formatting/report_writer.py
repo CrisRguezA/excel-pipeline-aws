@@ -8,6 +8,8 @@
 
   import pandas as pd
 
+  from .formats import get_formats
+
   logger = logging.getLogger(__name__)
 
   _STAGE = "stage3"

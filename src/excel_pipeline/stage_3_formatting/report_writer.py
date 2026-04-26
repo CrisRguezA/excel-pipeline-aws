@@ -1,287 +1,249 @@
 """Excel report generation for Stage 3 — writes Weekly_Report and Report_Info sheets."""
 
-  from __future__ import annotations
+from __future__ import annotations
 
-  import logging
-  from datetime import datetime
-  from pathlib import Path
+import logging
+from datetime import datetime
+from pathlib import Path
 
-  import pandas as pd
+import pandas as pd
 
-  from .formats import get_formats
+from .formats import get_formats
 
-  logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
-  _STAGE = "stage3"
+_STAGE = "stage3"
 
-  # ── style constants ──────────────────────────────────────────────────────────
-  _HEADER_BG       = "#1F4E79"
-  _HEADER_FONT     = "#FFFFFF"
-  _TITLE_BG        = "#D6E4F0"
-  _ALT_BG          = "#EBF3FB"
-  _TOTALS_BG       = "#1F4E79"
-  _TOTALS_FONT     = "#FFFFFF"
+# ── style constants ──────────────────────────────────────────────────────────
+_ALT_BG          = "#EBF3FB"
+_TOTALS_BG       = "#1F4E79"
+_TOTALS_FONT     = "#FFFFFF"
 
-  _COLOR_CERRADO   = "#C6EFCE"
-  _COLOR_PENDIENTE = "#FFEB9C"
-  _COLOR_CANCELADO = "#FFC7CE"
+_COLOR_CERRADO   = "#C6EFCE"
+_COLOR_PENDIENTE = "#FFEB9C"
+_COLOR_CANCELADO = "#FFC7CE"
 
-  _COLOR_FSC       = "#E2EFDA"
-  _COLOR_PEFC      = "#BDD7EE"
-  _COLOR_CE        = "#FFF2CC"
-  _COLOR_SIN_CERT  = "#F2F2F2"
+_COLOR_FSC       = "#E2EFDA"
+_COLOR_PEFC      = "#BDD7EE"
+_COLOR_CE        = "#FFF2CC"
+_COLOR_SIN_CERT  = "#F2F2F2"
 
-  _REQUIRED_COLUMNS = [
-      "id_venta", "cliente", "fecha_venta", "producto", "tipo_madera",
-      "certificacion", "cantidad_m3", "precio_m3", "importe", "estado",
-      "comercial", "pais",
-  ]
+_REQUIRED_COLUMNS = [
+    "id_venta", "cliente", "fecha_venta", "producto", "tipo_madera",
+    "certificacion", "cantidad_m3", "precio_m3", "importe", "estado",
+    "comercial", "pais",
+]
 
-  _COL_TYPE: dict[str, tuple[str | None, str]] = {
-      "id_venta":      (None,         "center"),
-      "cliente":       (None,         "left"),
-      "fecha_venta":   ("DD/MM/YYYY", "center"),
-      "producto":      (None,         "left"),
-      "tipo_madera":   (None,         "left"),
-      "certificacion": (None,         "left"),
-      "cantidad_m3":   ("#,##0.00",   "center"),
-      "precio_m3":     ("#,##0.00 €", "center"),
-      "importe":       ("#,##0.00 €", "center"),
-      "estado":        (None,         "center"),
-      "comercial":     (None,         "left"),
-      "pais":          (None,         "left"),
-  }
+_COL_TYPE: dict[str, tuple[str | None, str]] = {
+    "id_venta":      (None,         "center"),
+    "cliente":       (None,         "left"),
+    "fecha_venta":   ("DD/MM/YYYY", "center"),
+    "producto":      (None,         "left"),
+    "tipo_madera":   (None,         "left"),
+    "certificacion": (None,         "left"),
+    "cantidad_m3":   ("#,##0.00",   "center"),
+    "precio_m3":     ("#,##0.00 €", "center"),
+    "importe":       ("#,##0.00 €", "center"),
+    "estado":        (None,         "center"),
+    "comercial":     (None,         "left"),
+    "pais":          (None,         "left"),
+}
 
-  _FIXED_WIDTHS: dict[str, int] = {
-      "fecha_venta": 14,
-      "cliente":     28,
-      "producto":    18,
-      "comercial":   14,
-      "importe":     16,
-  }
+_FIXED_WIDTHS: dict[str, int] = {
+    "fecha_venta": 14,
+    "cliente":     28,
+    "producto":    18,
+    "comercial":   14,
+    "importe":     16,
+}
 
 
-  def write_report(df: pd.DataFrame, output_path: Path) -> Path:
-      """Write df to a timestamped Excel report under output_path; return the generated file path."""
-      _check_dataframe(df)
-      _check_required_columns(df)
+def write_report(df: pd.DataFrame, output_path: Path) -> Path:
+    """Write df to a timestamped Excel report under output_path; return the generated file path."""
+    _check_dataframe(df)
+    _check_required_columns(df)
 
-      source_ref = _get_source_ref(df)
-      df = df[_REQUIRED_COLUMNS].copy()
+    source_ref = _get_source_ref(df)
+    df = df[_REQUIRED_COLUMNS].copy()
 
-      output_path = Path(output_path)
-      output_path.mkdir(parents=True, exist_ok=True)
+    output_path = Path(output_path)
+    output_path.mkdir(parents=True, exist_ok=True)
 
-      timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-      file_path = output_path / f"weekly_sales_report_{timestamp}.xlsx"
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    file_path = output_path / f"weekly_sales_report_{timestamp}.xlsx"
 
-      with pd.ExcelWriter(file_path, engine="xlsxwriter") as writer:
-          workbook = writer.book
-          _write_report_sheet(workbook, df)
-          _write_info_sheet(workbook, df, source_ref)
+    with pd.ExcelWriter(file_path, engine="xlsxwriter") as writer:
+        workbook = writer.book
+        fmts = get_formats(workbook)
+        _write_report_sheet(workbook, df, fmts)
+        _write_info_sheet(workbook, df, source_ref, fmts)
 
-      logger.info(
-          "[%s] Report written — %s — %d rows exported",
-          _STAGE, file_path.name, len(df),
-      )
-      return file_path
-
-
-  # ── private: orchestration ────────────────────────────────────────────────────
-
-  def _write_report_sheet(workbook, df: pd.DataFrame) -> None:
-      ws = workbook.add_worksheet("Weekly_Report")
-      n_cols = len(df.columns)
-      n_rows = len(df)
-      fmt_cache = _build_format_cache(workbook)
-
-      _write_title(ws, workbook, n_cols)
-      _write_header(ws, workbook, df)
-      _write_data_rows(ws, df, fmt_cache)
-      _write_totals_row(ws, workbook, df)
-      _autofit_columns(ws, df)
-
-      ws.freeze_panes(2, 0)
-      ws.autofilter(1, 0, n_rows + 1, n_cols - 1)
+    logger.info(
+        "[%s] Report written — %s — %d rows exported",
+        _STAGE, file_path.name, len(df),
+    )
+    return file_path
 
 
-  def _write_info_sheet(workbook, df: pd.DataFrame, source_ref: str) -> None:
-      ws = workbook.add_worksheet("Report_Info")
+# ── private: orchestration ────────────────────────────────────────────────────
 
-      label_fmt = workbook.add_format({
-          "font_name": "Arial", "font_size": 10, "bold": True,
-          "bg_color": "#D6E4F0", "border": 1, "align": "left",
-      })
-      value_fmt = workbook.add_format({
-          "font_name": "Arial", "font_size": 10,
-          "bg_color": "#EBF3FB", "border": 1, "align": "left",
-      })
+def _write_report_sheet(workbook, df: pd.DataFrame, fmts: dict) -> None:
+    ws = workbook.add_worksheet("Weekly_Report")
+    n_cols = len(df.columns)
+    n_rows = len(df)
 
-      n_rows = len(df)
-      n_cerradas     = int((df["estado"] == "Cerrado").sum())
-      n_certificadas = int((df["certificacion"] != "Sin certificación").sum())
-      pct_cerradas     = f"{n_cerradas / n_rows * 100:.1f}%" if n_rows > 0 else "N/A"
-      pct_certificadas = f"{n_certificadas / n_rows * 100:.1f}%" if n_rows > 0 else "N/A"
+    _write_title(ws, fmts, n_cols)
+    _write_header(ws, fmts, df)
+    _write_data_rows(ws, df, fmts)
+    _write_totals_row(ws, fmts, df)
+    _autofit_columns(ws, df)
 
-      meta = [
-          ("Proyecto",               "excel-pipeline-aws"),
-          ("Archivos fuente",        source_ref),
-          ("Fecha generación",       datetime.now().strftime("%d/%m/%Y %H:%M")),
-          ("Total filas exportadas", str(n_rows)),
-          ("% ventas cerradas",      pct_cerradas),
-          ("% ventas certificadas",  pct_certificadas),
-      ]
-
-      ws.set_column(0, 0, 25)
-      ws.set_column(1, 1, 50)
-
-      for row_idx, (label, value) in enumerate(meta):
-          ws.write(row_idx, 0, label, label_fmt)
-          ws.write(row_idx, 1, value, value_fmt)
-          ws.set_row(row_idx, 20)
-
-      ws.hide_gridlines(2)
+    ws.freeze_panes(2, 0)
+    ws.autofilter(1, 0, n_rows + 1, n_cols - 1)
 
 
-  # ── private: format cache ─────────────────────────────────────────────────────
+def _write_info_sheet(workbook, df: pd.DataFrame, source_ref: str, fmts: dict) -> None:
+    ws = workbook.add_worksheet("Report_Info")
 
-  def _build_format_cache(workbook) -> dict:
-      backgrounds = [
-          _COLOR_CERRADO, _COLOR_PENDIENTE, _COLOR_CANCELADO,
-          _COLOR_FSC, _COLOR_PEFC, _COLOR_CE, _COLOR_SIN_CERT,
-          _ALT_BG, "#FFFFFF",
-      ]
-      type_variants = [
-          (None,          "left"),
-          (None,          "center"),
-          ("DD/MM/YYYY",  "center"),
-          ("#,##0.00 €",  "center"),
-          ("#,##0.00",    "center"),
-          ("0",           "center"),
-      ]
-      cache = {}
-      for bg in backgrounds:
-          for num_format, align in type_variants:
-              extra: dict = {"align": align}
-              if num_format:
-                  extra["num_format"] = num_format
-              cache[(bg, num_format, align)] = _make_format(workbook, bg, extra)
-      return cache
+    label_fmt = fmts["metadata_label"]
+    value_fmt = fmts["metadata_value"]
 
+    n_rows = len(df)
+    n_cerradas     = int((df["estado"] == "Cerrado").sum())
+    n_certificadas = int((df["certificacion"] != "Sin certificación").sum())
+    pct_cerradas     = f"{n_cerradas / n_rows * 100:.1f}%" if n_rows > 0 else "N/A"
+    pct_certificadas = f"{n_certificadas / n_rows * 100:.1f}%" if n_rows > 0 else "N/A"
 
-  def _make_format(workbook, bg: str, extra: dict | None = None):
-      base = {
-          "font_name": "Arial", "font_size": 10,
-          "border": 1, "valign": "vcenter", "bg_color": bg,
-      }
-      return workbook.add_format({**base, **(extra or {})})
+    meta = [
+        ("Proyecto",               "excel-pipeline-aws"),
+        ("Archivos fuente",        source_ref),
+        ("Fecha generación",       datetime.now().strftime("%d/%m/%Y %H:%M")),
+        ("Total filas exportadas", str(n_rows)),
+        ("% ventas cerradas",      pct_cerradas),
+        ("% ventas certificadas",  pct_certificadas),
+    ]
+
+    ws.set_column(0, 0, 25)
+    ws.set_column(1, 1, 50)
+
+    for row_idx, (label, value) in enumerate(meta):
+        ws.write(row_idx, 0, label, label_fmt)
+        ws.write(row_idx, 1, value, value_fmt)
+        ws.set_row(row_idx, 20)
+
+    ws.hide_gridlines(2)
 
 
-  # ── private: row/cell color ───────────────────────────────────────────────────
+# ── private: row/cell color ───────────────────────────────────────────────────
 
-  def _row_bg(estado: str, row_idx: int) -> str:
-      return {
-          "Cerrado":   _COLOR_CERRADO,
-          "Pendiente": _COLOR_PENDIENTE,
-          "Cancelado": _COLOR_CANCELADO,
-      }.get(estado, _ALT_BG if row_idx % 2 == 0 else "#FFFFFF")
-
-
-  def _cert_bg(cert: str) -> str:
-      return {
-          "FSC":               _COLOR_FSC,
-          "PEFC":              _COLOR_PEFC,
-          "CE":                _COLOR_CE,
-          "Sin certificación": _COLOR_SIN_CERT,
-      }.get(cert, "#FFFFFF")
+def _row_bg(estado: str, row_idx: int) -> str:
+    return {
+        "Cerrado":   _COLOR_CERRADO,
+        "Pendiente": _COLOR_PENDIENTE,
+        "Cancelado": _COLOR_CANCELADO,
+    }.get(estado, _ALT_BG if row_idx % 2 == 0 else "#FFFFFF")
 
 
-  # ── private: sheet sections ───────────────────────────────────────────────────
-
-  def _write_title(ws, workbook, n_cols: int) -> None:
-      title_fmt = workbook.add_format({
-          "font_name": "Arial", "font_size": 13, "bold": True,
-          "bg_color": _TITLE_BG, "font_color": "#1F4E79",
-          "align": "left", "valign": "vcenter",
-      })
-      fecha = datetime.now().strftime("%d/%m/%Y")
-      ws.merge_range(0, 0, 0, n_cols - 1, f"Reporte Semanal de Ventas — Generado: {fecha}", title_fmt)
-      ws.set_row(0, 24)
+def _cert_bg(cert: str) -> str:
+    return {
+        "FSC":               _COLOR_FSC,
+        "PEFC":              _COLOR_PEFC,
+        "CE":                _COLOR_CE,
+        "Sin certificación": _COLOR_SIN_CERT,
+    }.get(cert, "#FFFFFF")
 
 
-  def _write_header(ws, workbook, df: pd.DataFrame) -> None:
-      header_fmt = workbook.add_format({
-          "font_name": "Arial", "font_size": 11, "bold": True, "border": 1,
-          "bg_color": _HEADER_BG, "font_color": _HEADER_FONT,
-          "align": "center", "valign": "vcenter",
-      })
-      for col_idx, col_name in enumerate(df.columns):
-          ws.write(1, col_idx, col_name, header_fmt)
-      ws.set_row(1, 22)
+# ── private: sheet sections ───────────────────────────────────────────────────
+
+def _write_title(ws, fmts: dict, n_cols: int) -> None:
+    title_fmt = fmts["title"]
+    fecha = datetime.now().strftime("%d/%m/%Y")
+    ws.merge_range(0, 0, 0, n_cols - 1, f"Reporte Semanal de Ventas — Generado: {fecha}", title_fmt)
+    ws.set_row(0, 24)
 
 
-  def _write_data_rows(ws, df: pd.DataFrame, fmt_cache: dict) -> None:
-      col_names = list(df.columns)
-      for row_idx, (_, row) in enumerate(df.iterrows()):
-          estado = str(row.get("estado", ""))
-          cert   = str(row.get("certificacion", ""))
-          row_bg = _row_bg(estado, row_idx)
-          excel_row = row_idx + 2
-
-          for col_idx, col_name in enumerate(col_names):
-              value = row[col_name]
-              try:
-                  if pd.isna(value):
-                      value = None
-              except (TypeError, ValueError):
-                  pass
-
-              num_fmt, align = _COL_TYPE.get(col_name, (None, "left"))
-              bg = _cert_bg(cert) if col_name == "certificacion" else row_bg
-              cell_fmt = fmt_cache[(bg, num_fmt, align)]
-
-              if value is None:
-                  ws.write_blank(excel_row, col_idx, None, cell_fmt)
-              elif col_name == "id_venta":
-                  ws.write_string(excel_row, col_idx, str(value), cell_fmt)
-              else:
-                  ws.write(excel_row, col_idx, value, cell_fmt)
+def _write_header(ws, fmts: dict, df: pd.DataFrame) -> None:
+    header_fmt = fmts["header"]
+    for col_idx, col_name in enumerate(df.columns):
+        ws.write(1, col_idx, col_name, header_fmt)
+    ws.set_row(1, 22)
 
 
-  def _write_totals_row(ws, workbook, df: pd.DataFrame) -> None:
-      n_rows    = len(df)
-      n_cols    = len(df.columns)
-      tot_row   = n_rows + 2
-      col_names = list(df.columns)
+def _write_data_rows(ws, df: pd.DataFrame, fmts: dict) -> None:
+    col_names = list(df.columns)
+    for row_idx, (_, row) in enumerate(df.iterrows()):
+        estado = str(row.get("estado", ""))
+        cert   = str(row.get("certificacion", ""))
+        row_bg = _row_bg(estado, row_idx)
+        excel_row = row_idx + 2
 
-      totals_base = {
-          "font_name": "Arial", "font_size": 10, "bold": True, "border": 1,
-          "bg_color": _TOTALS_BG, "font_color": _TOTALS_FONT, "valign": "vcenter",
-      }
-      label_fmt  = workbook.add_format({**totals_base, "align": "left"})
-      center_fmt = workbook.add_format({**totals_base, "align": "center"})
-      euro_fmt   = workbook.add_format({**totals_base, "align": "center", "num_format": "#,##0.00 €"})
-      m3_fmt     = workbook.add_format({**totals_base, "align": "center", "num_format": "#,##0.00"})
+        for col_idx, col_name in enumerate(col_names):
+            value = row[col_name]
+            try:
+                if pd.isna(value):
+                    value = None
+            except (TypeError, ValueError):
+                pass
 
-      importe_idx  = col_names.index("importe")
-      cantidad_idx = col_names.index("cantidad_m3")
-      cliente_idx  = col_names.index("cliente")
+            num_fmt, align = _COL_TYPE.get(col_name, (None, "left"))
+            bg = _cert_bg(cert) if col_name == "certificacion" else row_bg
+            cell_fmt = fmts["cell"](bg_color=bg, num_format=num_fmt, align=align)
 
-      n_cerradas = int((df["estado"] == "Cerrado").sum())
-      pct = n_cerradas / n_rows * 100 if n_rows > 0 else 0
-      summary = f"{n_rows} ventas ({n_cerradas} cerradas — {pct:.0f}%)"
+            if value is None:
+                ws.write_blank(excel_row, col_idx, None, cell_fmt)
+            elif col_name == "id_venta":
+                ws.write_string(excel_row, col_idx, str(value), cell_fmt)
+            else:
+                ws.write(excel_row, col_idx, value, cell_fmt)
 
-      ws.write(tot_row, 0, "TOTALES", label_fmt)
-      ws.write(tot_row, cliente_idx, summary, center_fmt)
-      ws.write(tot_row, importe_idx, df["importe"].sum(), euro_fmt)
-      ws.write(tot_row, cantidad_idx, df["cantidad_m3"].sum(), m3_fmt)
 
-      filled = {0, cliente_idx, importe_idx, cantidad_idx}
-      for col_idx in range(n_cols):
-          if col_idx not in filled:
-              ws.write_blank(tot_row, col_idx, None, center_fmt)
+def _write_totals_row(ws, fmts: dict, df: pd.DataFrame) -> None:
+    n_rows    = len(df)
+    n_cols    = len(df.columns)
+    tot_row   = n_rows + 2
+    col_names = list(df.columns)
 
-      ws.set_row(tot_row, 20)
+    label_fmt = fmts["cell"](
+        bg_color=_TOTALS_BG,
+        align="left",
+        bold=True,
+        font_color=_TOTALS_FONT,
+    )
+    center_fmt = fmts["total_row"]
+    euro_fmt = fmts["cell"](
+        bg_color=_TOTALS_BG,
+        num_format="#,##0.00 €",
+        align="center",
+        bold=True,
+        font_color=_TOTALS_FONT,
+    )
+    m3_fmt = fmts["cell"](
+        bg_color=_TOTALS_BG,
+        num_format="#,##0.00",
+        align="center",
+        bold=True,
+        font_color=_TOTALS_FONT,
+    )
+
+    importe_idx  = col_names.index("importe")
+    cantidad_idx = col_names.index("cantidad_m3")
+    cliente_idx  = col_names.index("cliente")
+
+    n_cerradas = int((df["estado"] == "Cerrado").sum())
+    pct = n_cerradas / n_rows * 100 if n_rows > 0 else 0
+    summary = f"{n_rows} ventas ({n_cerradas} cerradas — {pct:.0f}%)"
+
+    ws.write(tot_row, 0, "TOTALES", label_fmt)
+    ws.write(tot_row, cliente_idx, summary, center_fmt)
+    ws.write(tot_row, importe_idx, df["importe"].sum(), euro_fmt)
+    ws.write(tot_row, cantidad_idx, df["cantidad_m3"].sum(), m3_fmt)
+
+    filled = {0, cliente_idx, importe_idx, cantidad_idx}
+    for col_idx in range(n_cols):
+        if col_idx not in filled:
+            ws.write_blank(tot_row, col_idx, None, center_fmt)
+
+    ws.set_row(tot_row, 20)
 
 
 def _autofit_columns(ws, df: pd.DataFrame) -> None:
@@ -296,24 +258,23 @@ def _autofit_columns(ws, df: pd.DataFrame) -> None:
         ws.set_column(col_idx, col_idx, width)
 
 
+# ── private: guards ───────────────────────────────────────────────────────────
 
-  # ── private: guards ───────────────────────────────────────────────────────────
-
-  def _check_dataframe(df: pd.DataFrame) -> None:
-      if not isinstance(df, pd.DataFrame):
-          logger.error("[%s] Input must be a pandas DataFrame, got %s", _STAGE, type(df).__name__)
-          raise TypeError(f"[{_STAGE}] Input must be a pandas DataFrame, got {type(df).__name__}")
-
-
-  def _check_required_columns(df: pd.DataFrame) -> None:
-      missing = [col for col in _REQUIRED_COLUMNS if col not in df.columns]
-      if missing:
-          logger.error("[%s] Missing required columns: %s", _STAGE, missing)
-          raise KeyError(f"[{_STAGE}] Missing required columns: {missing}")
+def _check_dataframe(df: pd.DataFrame) -> None:
+    if not isinstance(df, pd.DataFrame):
+        logger.error("[%s] Input must be a pandas DataFrame, got %s", _STAGE, type(df).__name__)
+        raise TypeError(f"[{_STAGE}] Input must be a pandas DataFrame, got {type(df).__name__}")
 
 
-  def _get_source_ref(df: pd.DataFrame) -> str:
-      if "source_file" in df.columns:
-          sources = df["source_file"].dropna().astype(str).unique()
-          return ", ".join(sorted(sources))
-      return "N/A"
+def _check_required_columns(df: pd.DataFrame) -> None:
+    missing = [col for col in _REQUIRED_COLUMNS if col not in df.columns]
+    if missing:
+        logger.error("[%s] Missing required columns: %s", _STAGE, missing)
+        raise KeyError(f"[{_STAGE}] Missing required columns: {missing}")
+
+
+def _get_source_ref(df: pd.DataFrame) -> str:
+    if "source_file" in df.columns:
+        sources = df["source_file"].dropna().astype(str).unique()
+        return ", ".join(sorted(sources))
+    return "N/A"

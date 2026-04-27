@@ -9,24 +9,16 @@ from pathlib import Path
 import pandas as pd
 
 from .formats import get_formats
+from .template_rules import row_bg, cert_bg
 
 logger = logging.getLogger(__name__)
 
 _STAGE = "stage3"
 
 # ── style constants ──────────────────────────────────────────────────────────
-_ALT_BG          = "#EBF3FB"
 _TOTALS_BG       = "#1F4E79"
 _TOTALS_FONT     = "#FFFFFF"
 
-_COLOR_CERRADO   = "#C6EFCE"
-_COLOR_PENDIENTE = "#FFEB9C"
-_COLOR_CANCELADO = "#FFC7CE"
-
-_COLOR_FSC       = "#E2EFDA"
-_COLOR_PEFC      = "#BDD7EE"
-_COLOR_CE        = "#FFF2CC"
-_COLOR_SIN_CERT  = "#F2F2F2"
 
 _REQUIRED_COLUMNS = [
     "id_venta", "cliente", "fecha_venta", "producto", "tipo_madera",
@@ -62,6 +54,9 @@ def write_report(df: pd.DataFrame, output_path: Path) -> Path:
     """Write df to a timestamped Excel report under output_path; return the generated file path."""
     _check_dataframe(df)
     _check_required_columns(df)
+
+    if len(df) == 0:
+        logger.warning("[%s] DataFrame is empty — report will have no data rows", _STAGE)
 
     source_ref = _get_source_ref(df)
     df = df[_REQUIRED_COLUMNS].copy()
@@ -108,19 +103,19 @@ def _write_info_sheet(workbook, df: pd.DataFrame, source_ref: str, fmts: dict) -
     label_fmt = fmts["metadata_label"]
     value_fmt = fmts["metadata_value"]
 
-    n_rows = len(df)
+    n_rows         = len(df)
     n_cerradas     = int((df["estado"] == "Cerrado").sum())
     n_certificadas = int((df["certificacion"] != "Sin certificación").sum())
-    pct_cerradas     = f"{n_cerradas / n_rows * 100:.1f}%" if n_rows > 0 else "N/A"
-    pct_certificadas = f"{n_certificadas / n_rows * 100:.1f}%" if n_rows > 0 else "N/A"
 
     meta = [
-        ("Proyecto",               "excel-pipeline-aws"),
-        ("Archivos fuente",        source_ref),
-        ("Fecha generación",       datetime.now().strftime("%d/%m/%Y %H:%M")),
-        ("Total filas exportadas", str(n_rows)),
-        ("% ventas cerradas",      pct_cerradas),
-        ("% ventas certificadas",  pct_certificadas),
+        ("Proyecto",            "excel-pipeline-aws"),
+        ("Archivo fuente",      source_ref),
+        ("Fecha generación",    datetime.now().strftime("%d/%m/%Y %H:%M")),
+        ("Total filas",         n_rows),
+        ("Ventas cerradas",     n_cerradas),
+        ("Ventas certificadas", n_certificadas),
+        ("Columnas",            len(df.columns)),
+        ("Pipeline",            "excel-data-cleaner → excel-report-formatter"),
     ]
 
     ws.set_column(0, 0, 25)
@@ -132,25 +127,6 @@ def _write_info_sheet(workbook, df: pd.DataFrame, source_ref: str, fmts: dict) -
         ws.set_row(row_idx, 20)
 
     ws.hide_gridlines(2)
-
-
-# ── private: row/cell color ───────────────────────────────────────────────────
-
-def _row_bg(estado: str, row_idx: int) -> str:
-    return {
-        "Cerrado":   _COLOR_CERRADO,
-        "Pendiente": _COLOR_PENDIENTE,
-        "Cancelado": _COLOR_CANCELADO,
-    }.get(estado, _ALT_BG if row_idx % 2 == 0 else "#FFFFFF")
-
-
-def _cert_bg(cert: str) -> str:
-    return {
-        "FSC":               _COLOR_FSC,
-        "PEFC":              _COLOR_PEFC,
-        "CE":                _COLOR_CE,
-        "Sin certificación": _COLOR_SIN_CERT,
-    }.get(cert, "#FFFFFF")
 
 
 # ── private: sheet sections ───────────────────────────────────────────────────
@@ -174,7 +150,7 @@ def _write_data_rows(ws, df: pd.DataFrame, fmts: dict) -> None:
     for row_idx, (_, row) in enumerate(df.iterrows()):
         estado = str(row.get("estado", ""))
         cert   = str(row.get("certificacion", ""))
-        row_bg = _row_bg(estado, row_idx)
+        row_bg_color = row_bg(estado, row_idx)
         excel_row = row_idx + 2
 
         for col_idx, col_name in enumerate(col_names):
@@ -186,7 +162,7 @@ def _write_data_rows(ws, df: pd.DataFrame, fmts: dict) -> None:
                 pass
 
             num_fmt, align = _COL_TYPE.get(col_name, (None, "left"))
-            bg = _cert_bg(cert) if col_name == "certificacion" else row_bg
+            bg = cert_bg(cert) if col_name == "certificacion" else row_bg_color
             cell_fmt = fmts["cell"](bg_color=bg, num_format=num_fmt, align=align)
 
             if value is None:
@@ -203,12 +179,6 @@ def _write_totals_row(ws, fmts: dict, df: pd.DataFrame) -> None:
     tot_row   = n_rows + 2
     col_names = list(df.columns)
 
-    label_fmt = fmts["cell"](
-        bg_color=_TOTALS_BG,
-        align="left",
-        bold=True,
-        font_color=_TOTALS_FONT,
-    )
     center_fmt = fmts["total_row"]
     euro_fmt = fmts["cell"](
         bg_color=_TOTALS_BG,
@@ -227,18 +197,11 @@ def _write_totals_row(ws, fmts: dict, df: pd.DataFrame) -> None:
 
     importe_idx  = col_names.index("importe")
     cantidad_idx = col_names.index("cantidad_m3")
-    cliente_idx  = col_names.index("cliente")
 
-    n_cerradas = int((df["estado"] == "Cerrado").sum())
-    pct = n_cerradas / n_rows * 100 if n_rows > 0 else 0
-    summary = f"{n_rows} ventas ({n_cerradas} cerradas — {pct:.0f}%)"
-
-    ws.write(tot_row, 0, "TOTALES", label_fmt)
-    ws.write(tot_row, cliente_idx, summary, center_fmt)
     ws.write(tot_row, importe_idx, df["importe"].sum(), euro_fmt)
     ws.write(tot_row, cantidad_idx, df["cantidad_m3"].sum(), m3_fmt)
 
-    filled = {0, cliente_idx, importe_idx, cantidad_idx}
+    filled = {importe_idx, cantidad_idx}
     for col_idx in range(n_cols):
         if col_idx not in filled:
             ws.write_blank(tot_row, col_idx, None, center_fmt)

@@ -54,7 +54,7 @@ def get_formats(workbook) -> dict:
 def _title(workbook):
     return workbook.add_format({
         "font_name": "Arial", "font_size": 13, "bold": True,
-        "bg_color": "#D6E4F0", "font_color": "#1F4E79",
+        "bg_color": "#FFFFFF", "font_color": "#FF0000",
         "align": "left", "valign": "vcenter",
     })
 
@@ -74,5 +74,5 @@ def _metadata_label(workbook):
 def _metadata_value(workbook):
     return workbook.add_format({
         "font_name": "Arial", "font_size": 10,
-        "border": 1, "bg_color": "#EBF3FB", "align": "left",
+        "border": 1, "bg_color": "#D6E4F0", "align": "left",
     })

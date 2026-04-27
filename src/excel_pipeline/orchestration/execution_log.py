@@ -16,6 +16,7 @@ _REQUIRED_KEYS = (
     "files_processed",
     "rows_total",
     "rows_per_stage",
+    "cleaning_summary",
     "errors",
     "warnings",
     "duration_seconds",

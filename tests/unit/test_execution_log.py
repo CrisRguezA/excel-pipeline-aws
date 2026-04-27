@@ -10,6 +10,10 @@ _VALID_LOG = {
     "files_processed":  3,
     "rows_total":       100,
     "rows_per_stage":   {"after_consolidation": 100, "after_cleaning": 95},
+    "cleaning_summary": {
+        "rows_input": 100, "rows_output": 95, "rows_removed_total": 5,
+        "steps": {}, "warnings": [],
+    },
     "errors":           [],
     "warnings":         [],
     "duration_seconds": 1.5,

@@ -14,11 +14,7 @@ from .execution_log import write_execution_log
 from ..stage_1_consolidation.consolidation import consolidate_dfs
 from ..stage_1_consolidation.ingestion import load_excels
 from ..stage_1_consolidation.normalization import normalize_dfs
-from ..stage_2_cleaning.deduplication import drop_empty_rows, remove_duplicates
-from ..stage_2_cleaning.null_handling import fill_nulls
-from ..stage_2_cleaning.standardization import standardize_categoricals
-from ..stage_2_cleaning.type_coercion import coerce_dates, coerce_numerics
-from ..stage_2_cleaning.validation import validate
+from ..stage_2_cleaning.cleaning import run_cleaning
 from ..stage_3_formatting.report_writer import write_report
 
 logger = logging.getLogger(__name__)
@@ -43,6 +39,7 @@ def run_pipeline(
     rows_after_consolidation = 0
     rows_after_cleaning      = 0
     report_path: Path | None = None
+    cleaning_summary: dict[str, Any] = {}
 
     logger.info("[%s] Pipeline started — input: %s", _MODULE, input_path)
 
@@ -54,7 +51,7 @@ def run_pipeline(
         rows_after_consolidation = len(df_unified)
 
         current_stage = "stage2"
-        df_validated = _run_stage_2(df_unified)
+        df_validated, cleaning_summary = run_cleaning(df_unified)
         rows_after_cleaning = len(df_validated)
 
         current_stage = "stage3"
@@ -69,6 +66,7 @@ def run_pipeline(
             files_processed=files_processed,
             rows_after_consolidation=rows_after_consolidation,
             rows_after_cleaning=rows_after_cleaning,
+            cleaning_summary=cleaning_summary,
             errors=errors,
             warnings=warnings,
             config_path=config_path,
@@ -90,6 +88,7 @@ def run_pipeline(
         files_processed=files_processed,
         rows_after_consolidation=rows_after_consolidation,
         rows_after_cleaning=rows_after_cleaning,
+        cleaning_summary=cleaning_summary,
         errors=errors,
         warnings=warnings,
         config_path=config_path,
@@ -154,18 +153,6 @@ def _load_files_with_names(
     return raw_dfs, source_names
 
 
-def _run_stage_2(df: pd.DataFrame) -> pd.DataFrame:
-    """Apply all Stage 2 cleaning operations in SDD order."""
-    df = coerce_numerics(df)
-    df = coerce_dates(df)
-    df = fill_nulls(df)
-    df = remove_duplicates(df)
-    df = standardize_categoricals(df)
-    df = drop_empty_rows(df)
-    df = validate(df)
-    return df
-
-
 def _build_log_data(
     *,
     started_at: datetime,
@@ -173,6 +160,7 @@ def _build_log_data(
     files_processed: int,
     rows_after_consolidation: int,
     rows_after_cleaning: int,
+    cleaning_summary: dict[str, Any],
     errors: list[str],
     warnings: list[str],
     config_path: Path,
@@ -188,6 +176,7 @@ def _build_log_data(
             "after_consolidation": rows_after_consolidation,
             "after_cleaning":      rows_after_cleaning,
         },
+        "cleaning_summary": cleaning_summary,
         "errors":           errors,
         "warnings":         warnings,
         "duration_seconds": round(duration, 3),

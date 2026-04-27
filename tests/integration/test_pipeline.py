@@ -9,6 +9,21 @@ from excel_pipeline.orchestration.pipeline import run_pipeline
 
 _PATCH_BASE = "excel_pipeline.orchestration.pipeline"
 
+_CLEANING_SUMMARY_STUB = {
+    "rows_input":         2,
+    "rows_output":        2,
+    "rows_removed_total": 0,
+    "steps": {
+        "type_coercion":    {"rows_before": 2, "rows_after": 2, "rows_removed": 0},
+        "null_handling":    {"rows_before": 2, "rows_after": 2, "rows_removed": 0},
+        "deduplication":    {"rows_before": 2, "rows_after": 2, "rows_removed": 0},
+        "standardization":  {"rows_before": 2, "rows_after": 2, "rows_removed": 0},
+        "empty_row_removal":{"rows_before": 2, "rows_after": 2, "rows_removed": 0},
+        "validation":       {"rows_before": 2, "rows_after": 2, "rows_removed": 0},
+    },
+    "warnings": [],
+}
+
 _MINIMAL_DF = pd.DataFrame({
     "id_venta":      ["V-001", "V-002"],
     "cliente":       ["ACME", "Beta"],
@@ -42,18 +57,15 @@ def pipeline_env(tmp_path, monkeypatch):
     fake_report = output_dir / "weekly_sales_report_20260427_114000.xlsx"
     captured: dict = {}
 
-    monkeypatch.setattr(f"{_PATCH_BASE}.load_config",              lambda p: _MINIMAL_CONFIG)
-    monkeypatch.setattr(f"{_PATCH_BASE}.load_excels",              lambda fps: [_MINIMAL_DF])
-    monkeypatch.setattr(f"{_PATCH_BASE}.normalize_dfs",            lambda *a, **kw: [_MINIMAL_DF])
-    monkeypatch.setattr(f"{_PATCH_BASE}.consolidate_dfs",          lambda dfs: _MINIMAL_DF)
-    monkeypatch.setattr(f"{_PATCH_BASE}.coerce_numerics",          lambda df: df)
-    monkeypatch.setattr(f"{_PATCH_BASE}.coerce_dates",             lambda df: df)
-    monkeypatch.setattr(f"{_PATCH_BASE}.fill_nulls",               lambda df: df)
-    monkeypatch.setattr(f"{_PATCH_BASE}.remove_duplicates",        lambda df: df)
-    monkeypatch.setattr(f"{_PATCH_BASE}.standardize_categoricals", lambda df: df)
-    monkeypatch.setattr(f"{_PATCH_BASE}.drop_empty_rows",          lambda df: df)
-    monkeypatch.setattr(f"{_PATCH_BASE}.validate",                 lambda df: df)
-    monkeypatch.setattr(f"{_PATCH_BASE}.write_report",             lambda df, p: fake_report)
+    monkeypatch.setattr(f"{_PATCH_BASE}.load_config",     lambda p: _MINIMAL_CONFIG)
+    monkeypatch.setattr(f"{_PATCH_BASE}.load_excels",     lambda fps: [_MINIMAL_DF])
+    monkeypatch.setattr(f"{_PATCH_BASE}.normalize_dfs",   lambda *a, **kw: [_MINIMAL_DF])
+    monkeypatch.setattr(f"{_PATCH_BASE}.consolidate_dfs", lambda dfs: _MINIMAL_DF)
+    monkeypatch.setattr(
+        f"{_PATCH_BASE}.run_cleaning",
+        lambda df: (_MINIMAL_DF, _CLEANING_SUMMARY_STUB),
+    )
+    monkeypatch.setattr(f"{_PATCH_BASE}.write_report", lambda df, p: fake_report)
 
     def _capture_log(log_data, out_path):
         captured["log_data"] = log_data
@@ -76,7 +88,7 @@ class TestRunPipeline:
         result = run_pipeline(env["input_dir"], env["output_dir"], env["config_f"])
         assert isinstance(result, dict)
         for key in ("timestamp", "files_processed", "rows_total", "rows_per_stage",
-                    "errors", "warnings", "duration_seconds"):
+                    "cleaning_summary", "errors", "warnings", "duration_seconds"):
             assert key in result
 
     def test_load_config_called_with_config_path(self, pipeline_env, monkeypatch):
@@ -134,6 +146,7 @@ class TestRunPipeline:
         assert result["rows_per_stage"]["after_consolidation"] == 2
         assert result["rows_per_stage"]["after_cleaning"] == 2
         assert result["report_path"] == str(env["fake_report"])
+        assert "cleaning_summary" in result
 
     def test_lock_files_excluded_from_input(self, pipeline_env, monkeypatch):
         env = pipeline_env
@@ -145,13 +158,3 @@ class TestRunPipeline:
         monkeypatch.setattr(f"{_PATCH_BASE}.load_excels", capture_load)
         run_pipeline(env["input_dir"], env["output_dir"], env["config_f"])
         assert not any(fp.name.startswith("~$") for fp in seen)
-
-    def test_remove_duplicates_called_in_stage2_chain(self, pipeline_env, monkeypatch):
-        env = pipeline_env
-        invoked: dict[str, int] = {"count": 0}
-        def _track(df):
-            invoked["count"] += 1
-            return df
-        monkeypatch.setattr(f"{_PATCH_BASE}.remove_duplicates", _track)
-        run_pipeline(env["input_dir"], env["output_dir"], env["config_f"])
-        assert invoked["count"] == 1

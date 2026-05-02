@@ -10,7 +10,8 @@ dependencies = [
   "pandas",
   "openpyxl",
   "xlsxwriter",
-  "python-dotenv"
+  "python-dotenv",
+  "boto3"
 ]
 
 [project.optional-dependencies]
@@ -19,7 +20,8 @@ dev = [
   "ruff",
   "mypy",
   "bandit",
-  "pip-audit"
+  "pip-audit",
+  "moto[s3]"
 ]
 
 [build-system]

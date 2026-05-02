@@ -35,11 +35,11 @@ def run_cleaning(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
 
     rows_output = len(df)
     summary = {
-        "rows_input":         rows_input,
-        "rows_output":        rows_output,
-        "rows_removed_total": rows_input - rows_output,
-        "steps":              steps,
-        "warnings":           [],
+        "rows_in":      rows_input,
+        "rows_out":     rows_output,
+        "rows_removed": rows_input - rows_output,
+        "steps":        steps,
+        "warnings":     [],
     }
     logger.info(
         "[%s] run_cleaning — %d in, %d out, %d removed",

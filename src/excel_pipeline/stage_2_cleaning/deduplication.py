@@ -9,6 +9,7 @@ logger = logging.getLogger(__name__)
 _STAGE = "stage2"
 _METADATA_COLUMNS = ("source_file",)
 _ID_VENTA_COLUMN = "id_venta"
+_COMPLETENESS_FIELDS = ("id_venta", "fecha_venta", "importe", "cantidad_m3", "precio_m3")
 
 
 def drop_empty_rows(df: pd.DataFrame) -> pd.DataFrame:
@@ -37,16 +38,37 @@ def drop_empty_rows(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def remove_duplicates(df: pd.DataFrame) -> pd.DataFrame:
-    """Remove duplicate non-null id_venta rows; null id_venta rows are preserved."""
+    """Keep the most complete row per non-null id_venta; null id_venta rows are all preserved."""
     _check_dataframe(df)
     df = df.copy()
     _check_column(df, _ID_VENTA_COLUMN)
 
     rows_before = len(df)
-    null_id_mask = df[_ID_VENTA_COLUMN].isna()
-    duplicate_mask = ~null_id_mask & df[_ID_VENTA_COLUMN].duplicated(keep="first")
+    df["_row_order"] = range(len(df))
+    null_id_mask = _is_null_or_empty(df[_ID_VENTA_COLUMN])
 
-    df = df[~duplicate_mask].reset_index(drop=True)
+    df_null    = df[null_id_mask]
+    df_nonnull = df[~null_id_mask].copy()
+
+    if not df_nonnull.empty:
+        df_nonnull["_score"] = _completeness_score(df_nonnull)
+        df_nonnull = (
+            df_nonnull
+            .sort_values(
+                [_ID_VENTA_COLUMN, "_score", "_row_order"],
+                ascending=[True, False, True],
+                kind="stable",
+            )
+            .drop_duplicates(subset=[_ID_VENTA_COLUMN], keep="first")
+            .drop(columns=["_score"])
+        )
+
+    df = (
+        pd.concat([df_null, df_nonnull])
+        .sort_values("_row_order")
+        .drop(columns=["_row_order"])
+        .reset_index(drop=True)
+    )
     rows_removed = rows_before - len(df)
 
     logger.info(
@@ -57,6 +79,20 @@ def remove_duplicates(df: pd.DataFrame) -> pd.DataFrame:
 
 
 # ── private helpers ──────────────────────────────────────────────────────────
+
+
+def _completeness_score(df: pd.DataFrame) -> pd.Series:
+    """Count non-null, non-empty values across _COMPLETENESS_FIELDS for each row."""
+    present = [col for col in _COMPLETENESS_FIELDS if col in df.columns]
+    return (~df[present].apply(_is_null_or_empty)).sum(axis=1)
+
+
+def _is_null_or_empty(series: pd.Series) -> pd.Series:
+    """Return True where a value is null or an empty/whitespace-only string."""
+    null_mask      = series.isna()
+    empty_str_mask = (~null_mask) & (series.astype(str).str.strip() == "")
+    return null_mask | empty_str_mask
+
 
 def _check_dataframe(df: pd.DataFrame) -> None:
     if not isinstance(df, pd.DataFrame):

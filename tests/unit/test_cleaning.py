@@ -37,7 +37,7 @@ class TestRunCleaning:
 
     def test_summary_has_required_keys(self, patched_cleaning):
         _, summary = run_cleaning(_DF_10.copy())
-        for key in ("rows_input", "rows_output", "rows_removed_total", "steps", "warnings"):
+        for key in ("rows_in", "rows_out", "rows_removed", "steps", "warnings"):
             assert key in summary
 
     def test_steps_has_all_six_step_names(self, patched_cleaning):
@@ -66,13 +66,13 @@ class TestRunCleaning:
 
     def test_summary_totals(self, patched_cleaning):
         _, summary = run_cleaning(_DF_10.copy())
-        assert summary["rows_input"]         == 10
-        assert summary["rows_output"]        == 4
-        assert summary["rows_removed_total"] == 6
+        assert summary["rows_in"]      == 10
+        assert summary["rows_out"]     == 4
+        assert summary["rows_removed"] == 6
 
     def test_row_count_arithmetic_is_consistent(self, patched_cleaning):
         _, summary = run_cleaning(_DF_10.copy())
-        assert summary["rows_removed_total"] == summary["rows_input"] - summary["rows_output"]
+        assert summary["rows_removed"] == summary["rows_in"] - summary["rows_out"]
         for step in summary["steps"].values():
             assert step["rows_removed"] == step["rows_before"] - step["rows_after"]
 
@@ -127,7 +127,7 @@ class TestRunCleaning:
         })
         result_df, summary = run_cleaning(df)
         assert isinstance(result_df, pd.DataFrame)
-        assert {"rows_input", "rows_output", "rows_removed_total", "steps", "warnings"} <= summary.keys()
+        assert {"rows_in", "rows_out", "rows_removed", "steps", "warnings"} <= summary.keys()
         assert set(summary["steps"].keys()) == {
             "type_coercion", "null_handling", "deduplication",
             "standardization", "empty_row_removal", "validation",

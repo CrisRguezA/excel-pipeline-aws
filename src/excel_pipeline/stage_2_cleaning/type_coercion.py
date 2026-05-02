@@ -9,6 +9,14 @@ logger = logging.getLogger(__name__)
 _STAGE = "stage2"
 _DATE_COLUMN = "fecha_venta"
 _NUMERIC_COLUMNS = ("cantidad_m3", "precio_m3", "importe")
+_DATE_FORMATS = (
+    "%d/%m/%Y",
+    "%Y-%m-%d",
+    "%d-%m-%Y",
+    "%d.%m.%Y",
+    "%Y/%m/%d",
+    "%m/%d/%Y",
+)
 
 
 def coerce_dates(df: pd.DataFrame) -> pd.DataFrame:
@@ -16,10 +24,24 @@ def coerce_dates(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
     _check_column(df, _DATE_COLUMN)
     nulls_before = int(df[_DATE_COLUMN].isna().sum())
-    df[_DATE_COLUMN] = pd.to_datetime(df[_DATE_COLUMN], dayfirst=True, errors="coerce")
+    df[_DATE_COLUMN] = _parse_date_series(df[_DATE_COLUMN])
     nulls_after = int(df[_DATE_COLUMN].isna().sum())
     _log_coercion_result(_DATE_COLUMN, nulls_before, nulls_after)
     return df
+
+
+def _parse_date_series(series: pd.Series) -> pd.Series:
+    """Try each format in _DATE_FORMATS in order; first match wins per cell."""
+    result = pd.Series(pd.NaT, index=series.index, dtype="datetime64[ns]")
+    unmatched = series.notna()
+    for fmt in _DATE_FORMATS:
+        if not unmatched.any():
+            break
+        parsed = pd.to_datetime(series, format=fmt, errors="coerce")
+        newly_matched = unmatched & parsed.notna()
+        result = result.mask(newly_matched, parsed)
+        unmatched = unmatched & ~newly_matched
+    return result
 
 
 def coerce_numerics(df: pd.DataFrame) -> pd.DataFrame:

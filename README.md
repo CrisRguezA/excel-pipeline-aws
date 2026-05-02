@@ -64,6 +64,8 @@ Stage 4 -> Orchestration
 - Runs the full pipeline
 - Generates timestamped execution logs (`execution_log_YYYYMMDD_HHMM.json`) with complete traceability
 
+For a detailed view of the system design, architectural decisions and rationale, see:
+→ `docs/SDD_public/`
 ---
 
 ## Usage

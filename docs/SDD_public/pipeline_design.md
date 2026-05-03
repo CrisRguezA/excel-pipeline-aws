@@ -2,6 +2,29 @@
 
 This document describes the internal structure and execution flow of the Excel Sales Pipeline.
 The system is designed as a modular pipeline with strict separation of responsibilities between stages.
+For the methodological foundations behind this design, see:
+→ `methodology.md`
+
+---
+
+## Relation to GAIA SDD Model
+
+This pipeline design is conceptually aligned with the GAIA SDD model.
+
+GAIA defines an execution flow based on:
+Specification → Planning → Execution → Validation → Closure
+
+The pipeline maps these concepts into a simplified, stage-based architecture:
+
+- Consolidation → Structural normalization (Specification proxy)
+- Cleaning → Validation and enforcement
+- Formatting → Output materialization
+- Orchestration → End-to-end control and traceability
+
+Unlike GAIA, which uses explicit workflows and governance artifacts, this implementation encodes these responsibilities directly into modular pipeline stages.
+
+For a detailed explanation of the methodology, see:
+→ `methodology.md`
 
 ---
 

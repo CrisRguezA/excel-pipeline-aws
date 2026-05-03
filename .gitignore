@@ -76,3 +76,11 @@ logs/
 
 # AWS
 .aws/credentials
+build_lambda/
+lambda_layer/
+lambda_package.zip
+lambda_layer.zip
+event.json
+trust-policy.json
+requirements.txt
+response.json

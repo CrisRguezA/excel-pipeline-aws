@@ -187,6 +187,15 @@ v1.0.0 - MVP complete
 - [x] Full execution traceability
 - [x] 74 tests passing
 
+```text
+v1.1.0 - Cloud entry complete
+```
+
+- [x] AWS Lambda execution validated end-to-end
+- [x] S3 I/O adapter (inputs, outputs, config)
+- [x] Lambda Layer for production dependencies
+- [x] Cloud deployment documented
+
 ---
 
 ## Notes

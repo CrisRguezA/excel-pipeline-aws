@@ -64,6 +64,23 @@ Stage 4 -> Orchestration
 - Runs the full pipeline
 - Generates timestamped execution logs (`execution_log_YYYYMMDD_HHMM.json`) with complete traceability
 
+### SDD Approach (Inspired by GAIA)
+
+This project follows a Spec-Driven Development (SDD) approach inspired by the GAIA framework (Governed AI for Interactive Applications, 2026).
+
+While not a full GAIA implementation, the pipeline aligns with several of its core principles:
+
+- Separation between specification, execution and validation
+- Strong emphasis on data validation as an "evidence-first" mechanism
+- Explicit pipeline stages acting as controlled execution flows
+- Traceability through structured execution logs
+
+GAIA introduces a formal system of Rules, Workflows and Skills to govern AI-assisted development.  
+In this project, similar ideas are applied in a simplified and production-oriented way, adapted to a data pipeline context.
+
+Reference:
+Cristina Cachero, *Spec-Driven Development con GAIA: De Cero a Maestro*, 2026.
+
 For a detailed view of the system design, architectural decisions and rationale, see:
 → `docs/SDD_public/`
 ---

@@ -32,12 +32,10 @@ Stage 3 -> Formatting
 Stage 4 -> Orchestration
 ```
 
-Each stage has a single responsibility:
+Each stage has a clearly defined responsibility and operates on explicit data contracts.
 
-- Stage 1 -> schema normalization and data consolidation
-- Stage 2 -> data quality (types, nulls, validation, deduplication)
-- Stage 3 -> report generation (Excel output)
-- Stage 4 -> pipeline execution and logging
+For a detailed description of each stage and execution flow, see:
+→ pipeline_design.md
 
 ---
 
@@ -82,6 +80,8 @@ Internal working documents and exploratory notes are intentionally excluded.
 
 ## Development Approach
 
-The project follows a Spec-Driven Development (SDD) methodology.
-Implementation is assisted by AI tools, with an independent validation step to ensure correctness, robustness and alignment with specifications.
-All final decisions and design direction are defined and validated by the project lead.
+This project follows a Spec-Driven Development (SDD) approach.
+
+For a detailed explanation of the methodology, including its alignment with the GAIA framework and AI-assisted development practices, see:
+→ `methodology.md`
+

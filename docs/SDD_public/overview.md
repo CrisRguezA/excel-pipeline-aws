@@ -85,3 +85,21 @@ Internal working documents and exploratory notes are intentionally excluded.
 The project follows a Spec-Driven Development (SDD) methodology.
 Implementation is assisted by AI tools, with an independent validation step to ensure correctness, robustness and alignment with specifications.
 All final decisions and design direction are defined and validated by the project lead.
+
+---
+
+## Methodological Context
+
+This project’s SDD approach is conceptually aligned with the GAIA framework (Governed AI for Interactive Applications, 2026).
+
+GAIA defines a structured system for AI-assisted development based on:
+
+- Artifact governance (Rules, Workflows, Skills)
+- Intent-driven execution flows (feature, bug, refactor)
+- Evidence-based development through TDD
+- Strict separation between specification, planning, execution and closure
+
+Although this project does not implement GAIA formally (no .agent layer or workflow commands), it applies several of its principles in a simplified and pragmatic way adapted to data engineering pipelines.
+
+Reference:
+Cristina Cachero (2026). Spec-Driven Development con GAIA.

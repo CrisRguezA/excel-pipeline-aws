@@ -5,6 +5,26 @@ The system is designed as a modular pipeline with strict separation of responsib
 
 ---
 
+## Relation to GAIA SDD Model
+
+The pipeline architecture can be interpreted as a simplified execution flow aligned with GAIA’s operational model:
+
+GAIA flow:
+Specification → Planning → Execution → Validation → Closure
+
+Pipeline equivalent:
+
+- Consolidation → Structural normalization (Specification proxy)
+- Cleaning → Validation and enforcement (Execution + Validation)
+- Formatting → Output materialization
+- Orchestration → End-to-end control and traceability (Closure)
+
+Unlike GAIA, which defines explicit workflows and governance artifacts, this implementation encodes these responsibilities directly into modular pipeline stages.
+
+This makes the system simpler, but less flexible than a full GAIA-driven architecture.
+
+---
+
 ## Pipeline Overview
 
 ```text
